@@ -1,0 +1,142 @@
+﻿@implements IDisposable
+
+@inject NavigationManager NavigationManager
+@inject TechDirect.Services.Cart.CartService CartService
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">TechDirect</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="counter">
+                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="weather">
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="auth">
+                <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Auth Required
+            </NavLink>
+        </div>
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Manage">
+                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <form action="Account/Logout" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                        <button type="submit" class="nav-link">
+                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
+                        </button>
+                    </form>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Register">
+                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="products">
+                <span class="bi bi-bag-fill-nav-menu" aria-hidden="true"></span> Products
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="laptops">
+                <span class="bi bi-laptop-nav-menu" aria-hidden="true"></span> Laptops
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="catalogue">
+                <span class="bi bi-grid-nav-menu" aria-hidden="true"></span> Catalogue
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="deals">
+                <span class="bi bi-lightning-nav-menu" aria-hidden="true"></span> Deals
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link cart-link" href="cart">
+                <span class="cart-icon-wrapper" aria-hidden="true">
+                    <svg class="cart-icon" viewBox="0 0 24 24" focusable="false">
+                        <path d="M2.5 5.5h2l1.5 8h10.2l2-6.5H6.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <circle cx="10" cy="17.5" r="1.3" fill="currentColor" />
+                        <circle cx="16.5" cy="17.5" r="1.3" fill="currentColor" />
+                    </svg>
+                    @if (cartCount > 0)
+                    {
+                        <span class="cart-count-badge">@cartCount</span>
+                    }
+                </span>
+                <span>Cart</span>
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+    private int cartCount;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        cartCount = CartService.Items.Count;
+        NavigationManager.LocationChanged += OnLocationChanged;
+        CartService.CartChanged += HandleCartChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    private void HandleCartChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            cartCount = CartService.Items.Count;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+        CartService.CartChanged -= HandleCartChanged;
+    }
+}
+

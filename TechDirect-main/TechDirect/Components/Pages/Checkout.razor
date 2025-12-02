@@ -1,0 +1,199 @@
+@page "/checkout"
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.ComponentModel.DataAnnotations
+
+@inject CartService CartService
+@inject PaymentService PaymentService
+@inject NavigationManager NavigationManager
+
+<h3>Checkout</h3>
+
+@if (!CartService.Items.Any())
+{
+    <div class="alert alert-info">
+        Your cart is empty. <NavLink href="products" class="alert-link">Browse products</NavLink> to add items.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <strong>Order Summary</strong>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-end">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in CartService.Items)
+                            {
+                                <tr>
+                                    <td>@item.Name</td>
+                                    <td class="text-end">@item.Price.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <span>Subtotal</span>
+                        <strong>@Subtotal.ToString("C")</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Tax (@(TaxRate * 100)% )</span>
+                        <strong>@Tax.ToString("C")</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 border-top pt-2">
+                        <span>Total</span>
+                        <strong>@Total.ToString("C")</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <strong>Customer Information</strong>
+                </div>
+                <div class="card-body">
+                    <EditForm EditContext="editContext" OnValidSubmit="PlaceOrderAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label class="form-label">Full Name</label>
+                            <InputText class="form-control" @bind-Value="form.FullName" />
+                            <ValidationMessage For="@(() => form.FullName)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="form.Email" />
+                            <ValidationMessage For="@(() => form.Email)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Shipping Address</label>
+                            <InputTextArea class="form-control" @bind-Value="form.ShippingAddress" rows="3" />
+                            <ValidationMessage For="@(() => form.ShippingAddress)" />
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100" disabled="@isSubmitting">
+                            @(isSubmitting ? "Processing..." : "Place Order")
+                        </button>
+                        <button type="button" class="btn btn-outline-primary w-100 mt-2" @onclick="PayWithPayPalAsync" disabled="@isSubmitting">
+                            Pay with PayPal
+                        </button>
+                    </EditForm>
+
+                    <div class="mt-3 text-muted small">
+                        Payments are posted over HTTPS directly to PayPal using short-lived OAuth tokens;
+                        no card data touches the browser.
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3">@errorMessage</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly CheckoutFormModel form = new();
+    private EditContext? editContext;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    private const decimal TaxRate = 0.08m;
+
+    private decimal Subtotal => CartService.Items.Sum(p => p.Price);
+    private decimal Tax => Math.Round(Subtotal * TaxRate, 2, MidpointRounding.AwayFromZero);
+    private decimal Total => Subtotal + Tax;
+
+    protected override void OnInitialized()
+    {
+        editContext = new EditContext(form);
+        CartService.CartChanged += HandleCartChanged;
+    }
+
+    private void HandleCartChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task PlaceOrderAsync()
+    {
+        await ProcessPaymentAsync("manual");
+    }
+
+    private async Task PayWithPayPalAsync()
+    {
+        if (editContext is null || !editContext.Validate())
+        {
+            return;
+        }
+
+        await ProcessPaymentAsync("paypal");
+    }
+
+    private async Task ProcessPaymentAsync(string paymentSource)
+    {
+        if (!CartService.Items.Any())
+        {
+            errorMessage = "Your cart is empty.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var request = new PaymentRequest(
+            Total,
+            "USD",
+            new CheckoutCustomer(form.FullName, form.Email, form.ShippingAddress))
+        {
+            AccessToken = null // TODO: supply a server-issued OAuth token.
+        };
+
+        var result = await PaymentService.ProcessPayPalAsync(request);
+
+        isSubmitting = false;
+
+        if (!result.IsSuccess)
+        {
+            errorMessage = result.ErrorMessage ?? "Payment failed. Please try again.";
+            return;
+        }
+
+        CartService.ClearCart();
+        var orderId = result.TransactionId ?? Guid.NewGuid().ToString("N");
+        NavigationManager.NavigateTo($"/confirmation?orderId={Uri.EscapeDataString(orderId)}", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        CartService.CartChanged -= HandleCartChanged;
+    }
+
+    private sealed class CheckoutFormModel
+    {
+        [Required(ErrorMessage = "Full name is required.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Shipping address is required.")]
+        public string ShippingAddress { get; set; } = string.Empty;
+    }
+}
+

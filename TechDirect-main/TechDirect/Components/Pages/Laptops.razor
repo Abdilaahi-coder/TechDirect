@@ -1,0 +1,156 @@
+@page "/laptops"
+@rendermode InteractiveServer
+
+@inject CartService CartService
+
+<section class="page-hero mb-5">
+    <div>
+        <p class="text-uppercase text-secondary mb-2 fw-semibold">Premium Selection</p>
+        <h1 class="display-5 fw-bold">Laptops curated for every workflow</h1>
+        <p class="lead text-muted">
+            Inspired by the clean filtering experience on major electronics retailers, this catalogue lets you jump
+            straight into creator rigs, gaming beasts, or ultra-portable picks.
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var segment in laptopSegments)
+            {
+                <button class="btn @(segment == activeSegment ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => Filter(segment)">
+                    @segment
+                </button>
+            }
+        </div>
+    </div>
+    <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=700&q=80"
+         alt="Laptop workspace" class="hero-art d-none d-lg-block" />
+</section>
+
+<div class="row g-4">
+    @foreach (var laptop in filteredLaptops)
+    {
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm laptop-card">
+                <img src="@laptop.ImageUrl" class="card-img-top product-card-img" alt="@laptop.Name" />
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="card-title mb-0">@laptop.Name</h5>
+                        <span class="badge bg-info-subtle text-info-emphasis">@laptop.Segment</span>
+                    </div>
+                    <p class="text-muted small">@laptop.Tagline</p>
+                    <ul class="laptop-spec-list">
+                        @foreach (var spec in laptop.Specs)
+                        {
+                            <li>@spec</li>
+                        }
+                    </ul>
+                    <div class="mt-auto">
+                        <div class="fw-bold fs-4 mb-2">@laptop.Price.ToString("C")</div>
+                        <button class="btn btn-primary w-100" @onclick="() => AddToCart(laptop)">Add to Cart</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly string[] laptopSegments = ["All", "Creator", "Gaming", "Everyday"];
+    private string activeSegment = "All";
+    private IEnumerable<LaptopModel> filteredLaptops = Array.Empty<LaptopModel>();
+
+    private readonly List<LaptopModel> laptops = new()
+    {
+        new("Apex Creator 15", "Creator", 2299,
+            "Studio-grade OLED, port hub, and color-calibrated output.",
+            [
+                "Intel Core Ultra 9",
+                "32GB LPDDR5X",
+                "2TB NVMe Gen5",
+                "NVIDIA RTX 4080 12GB"
+            ],
+            "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=80"),
+        new("Pulse Stealth 14", "Gaming", 1899,
+            "Blends a 240Hz panel with compact magnesium chassis.",
+            [
+                "Intel Core i9-14900H",
+                "32GB DDR5",
+                "1TB NVMe Gen4",
+                "GeForce RTX 4070 8GB"
+            ],
+            "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=700&q=80"),
+        new("Featherbook X", "Everyday", 1199,
+            "Battery-first ultrabook inspired by premium retail picks.",
+            [
+                "Intel Core i7-155U",
+                "16GB LPDDR5",
+                "1TB NVMe Gen4",
+                "14\" 2.8K OLED touch"
+            ],
+            "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=700&q=80"),
+        new("Nova Flex 16", "Creator", 2599,
+            "Mini-LED dual hinge made for illustrators and 3D artists.",
+            [
+                "AMD Ryzen AI 9 HX",
+                "64GB LPDDR5X",
+                "2TB NVMe Gen4",
+                "Radeon Pro 780M"
+            ],
+            "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=700&q=80"),
+        new("Circuit Go 13", "Everyday", 899,
+            "Retail favorite for students and commuters with Wi-Fi 7.",
+            [
+                "Intel Core i5-1335U",
+                "16GB RAM",
+                "512GB SSD",
+                "13\" 120Hz IPS"
+            ],
+            "https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&fit=crop&w=700&q=80"),
+        new("Obsidian 18 Pro", "Gaming", 2999,
+            "Flagship desktop replacement similar to big box exclusives.",
+            [
+                "Intel Core i9-14900HX",
+                "64GB DDR5",
+                "4TB NVMe RAID",
+                "RTX 4090 16GB"
+            ],
+            "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=700&q=80"),
+    };
+
+    protected override void OnInitialized()
+    {
+        ApplyFilter();
+    }
+
+    private void Filter(string segment)
+    {
+        activeSegment = segment;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        filteredLaptops = activeSegment == "All"
+            ? laptops
+            : laptops.Where(l => l.Segment == activeSegment);
+    }
+
+    private void AddToCart(LaptopModel laptop)
+    {
+        CartService.AddToCart(new Product
+        {
+            Name = laptop.Name,
+            Description = laptop.Tagline,
+            Price = laptop.Price,
+            ImageUrl = laptop.ImageUrl
+        });
+    }
+
+    private sealed record LaptopModel(
+        string Name,
+        string Segment,
+        decimal Price,
+        string Tagline,
+        IReadOnlyList<string> Specs,
+        string ImageUrl);
+}
+

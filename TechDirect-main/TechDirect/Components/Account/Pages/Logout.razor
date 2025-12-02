@@ -1,0 +1,19 @@
+﻿@page "/logout"
+
+@using Microsoft.AspNetCore.Identity
+@using TechDirect.Data
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<p>Signing you out...</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Sign the user out
+        await SignInManager.SignOutAsync();
+
+        // Redirect to home (or wherever you prefer)
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

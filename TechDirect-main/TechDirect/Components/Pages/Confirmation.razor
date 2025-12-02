@@ -1,0 +1,20 @@
+@page "/confirmation"
+@rendermode InteractiveServer
+
+<h3>Thank you for your order!</h3>
+
+<p>
+    We emailed your receipt and will ship your items shortly.
+    @if (!string.IsNullOrWhiteSpace(OrderId))
+    {
+        <span>Your order number is <strong>@OrderId</strong>.</span>
+    }
+</p>
+
+<NavLink class="btn btn-primary" href="/">Continue shopping</NavLink>
+
+@code {
+    [SupplyParameterFromQuery(Name = "orderId")]
+    public string? OrderId { get; set; }
+}
+

@@ -1,0 +1,196 @@
+﻿@page "/admin/users/{Id}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@layout ManageLayout
+@* @layout AdminLayout *@
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using TechDirect.Components.Account.Shared
+@using TechDirect.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+
+<PageTitle>User details</PageTitle>
+
+<h3>User details</h3>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert alert-info">@statusMessage</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (user is null)
+{
+    <p>User not found.</p>
+}
+else
+{
+    <div class="card p-3 mb-4">
+        <h5 class="mb-3">Profile information</h5>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">First name</label>
+                <input class="form-control" @bind="FirstNameInput" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Last name</label>
+                <input class="form-control" @bind="LastNameInput" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input class="form-control" value="@user.Email" disabled />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Phone</label>
+            <input class="form-control" @bind="PhoneInput" />
+        </div>
+
+        <div class="form-check mb-3">
+            <input type="checkbox"
+                   class="form-check-input"
+                   @bind="IsActiveInput"
+                   id="activeToggle" />
+            <label class="form-check-label" for="activeToggle">Account active</label>
+        </div>
+
+        <button class="btn btn-primary" @onclick="SaveAsync">Save changes</button>
+    </div>
+
+    <div class="card p-3">
+        <h5 class="mb-3">Roles</h5>
+
+        @foreach (var role in allRoles)
+        {
+            var assigned = userRoles.Contains(role);
+
+            <div class="form-check mb-1">
+                <input type="checkbox"
+                       class="form-check-input"
+                       checked="@assigned"
+                       @onclick="() => ToggleRoleAsync(role)" />
+                <label class="form-check-label">@role</label>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = default!;
+
+    private ApplicationUser? user;
+    private List<string> allRoles = new();
+    private List<string> userRoles = new();
+    private string? statusMessage;
+    private bool isLoading = true;
+
+    private string? FirstNameInput;
+    private string? LastNameInput;
+    private string? PhoneInput;
+    private bool IsActiveInput;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserAsync();
+    }
+
+    private async Task LoadUserAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+
+        user = await UserManager.FindByIdAsync(Id);
+
+        if (user is null)
+        {
+            isLoading = false;
+            statusMessage = "User not found.";
+            return;
+        }
+
+        // Profile fields
+        FirstNameInput = user.FirstName;
+        LastNameInput = user.LastName;
+        PhoneInput = user.PhoneNumber;
+        IsActiveInput = user.IsActive;
+
+        // Roles
+        userRoles = (await UserManager.GetRolesAsync(user)).ToList();
+
+        allRoles = RoleManager.Roles
+            .Select(r => r.Name!)
+            .OrderBy(r => r)
+            .ToList();
+
+        isLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (user is null)
+        {
+            statusMessage = "User not loaded.";
+            return;
+        }
+
+        user.FirstName = FirstNameInput ?? user.FirstName;
+        user.LastName = LastNameInput ?? user.LastName;
+        user.PhoneNumber = PhoneInput;
+        user.IsActive = IsActiveInput;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        var result = await UserManager.UpdateAsync(user);
+
+        if (!result.Succeeded)
+        {
+            statusMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+            return;
+        }
+
+        statusMessage = "User details updated.";
+    }
+
+    private async Task ToggleRoleAsync(string role)
+    {
+        if (user is null)
+        {
+            statusMessage = "User not loaded.";
+            return;
+        }
+
+        if (userRoles.Contains(role))
+        {
+            var result = await UserManager.RemoveFromRoleAsync(user, role);
+            if (!result.Succeeded)
+            {
+                statusMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            userRoles.Remove(role);
+            statusMessage = $"Removed role: {role}.";
+        }
+        else
+        {
+            var result = await UserManager.AddToRoleAsync(user, role);
+            if (!result.Succeeded)
+            {
+                statusMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            userRoles.Add(role);
+            statusMessage = $"Assigned role: {role}.";
+        }
+    }
+}

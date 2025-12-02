@@ -1,0 +1,58 @@
+﻿@page "/products"
+@rendermode InteractiveServer
+@using TechDirect.Data
+@using TechDirect.Models
+@using TechDirect.Services.Cart
+@inject ApplicationDbContext _context
+@inject CartService CartService
+
+<h3>Products</h3>
+
+@if (products == null)
+{
+    <p>Loading...</p>
+}
+else if (!products.Any())
+{
+    <p>No products available.</p>
+}
+else
+{
+    <div class="row">
+        @foreach (var p in products)
+        {
+            <div class="col-3 mb-3">
+                <div class="card shadow-sm">
+                    <img src="@ResolveImage(p)" class="card-img-top product-card-img" alt="@p.Name" />
+                    <div class="card-body">
+                        <h5 class="card-title">@p.Name</h5>
+                        <p class="card-text">@p.Price.ToString("C")</p>
+                        <button class="btn btn-primary" @onclick="() => AddToCart(p)">Add to Cart</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Product>? products;
+
+    protected override void OnInitialized()
+    {
+        products = _context.Products.ToList();
+    }
+
+    void AddToCart(Product product) => CartService.AddToCart(product);
+
+    private static string ResolveImage(Product product)
+    {
+        var path = string.IsNullOrWhiteSpace(product.ImageUrl)
+            ? "images/devices/placeholder.svg"
+            : product.ImageUrl.Trim();
+
+        return Uri.IsWellFormedUriString(path, UriKind.Absolute)
+            ? path
+            : $"/{path.TrimStart('/')}";
+    }
+}

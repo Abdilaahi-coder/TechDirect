@@ -1,0 +1,70 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using TechDirect.Data
+@using TechDirect.Models
+@inject ApplicationDbContext DbContext
+@inject TechDirect.Services.Cart.CartService CartService
+
+<div class="home-hero text-center mb-5">
+    <h1 class="display-5 fw-bold text-white mb-3">Upgrade Your Tech</h1>
+    <p class="lead text-white-50 mb-4">
+        Discover the latest gadgets designed for performance and style.
+    </p>
+    <button class="btn btn-primary btn-lg px-4">
+        Shop Now
+    </button>
+</div>
+
+<section>
+    <h2 class="h4 mb-4">Featured Products</h2>
+
+    @if (!featuredProducts.Any())
+    {
+        <p class="text-muted">No featured products available right now.</p>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var product in featuredProducts)
+            {
+                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm">
+                    <img class="card-img-top product-card-img"
+                         src="@GetImageFor(product)"
+                         alt="@product.Name" />
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">@product.Name</h5>
+                            <p class="card-text fw-bold mb-3">@product.Price.ToString("C")</p>
+                            <button class="btn btn-primary mt-auto" @onclick="() => AddToCart(product)">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<Product> featuredProducts = new();
+
+    protected override void OnInitialized()
+    {
+        featuredProducts = DbContext.Products
+            .OrderBy(p => p.Id)
+            .Take(8)
+            .ToList();
+    }
+
+    private void AddToCart(Product product) => CartService.AddToCart(product);
+
+    private static string GetImageFor(Product product)
+    {
+        var path = string.IsNullOrWhiteSpace(product.ImageUrl)
+            ? "images/devices/placeholder.svg"
+            : product.ImageUrl.Trim();
+
+        return Uri.IsWellFormedUriString(path, UriKind.Absolute)
+            ? path
+            : $"/{path.TrimStart('/')}";
+    }
+}

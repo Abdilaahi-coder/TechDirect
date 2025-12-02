@@ -1,0 +1,119 @@
+@page "/deals"
+@rendermode InteractiveServer
+
+@inject CartService CartService
+
+<section class="page-hero mb-5">
+    <div>
+        <p class="text-uppercase text-secondary mb-2 fw-semibold">Limited time</p>
+        <h1 class="display-5 fw-bold">Deals of the week</h1>
+        <p class="lead text-muted">
+            Modeled after the deal grids you see on storefronts like Micro Center or Best Buy: quick-glance savings,
+            urgency badges, and curated bundles that make sense together.
+        </p>
+    </div>
+</section>
+
+<div class="row g-4 mb-4">
+    @foreach (var hero in heroDeals)
+    {
+        <div class="col-12 col-lg-6">
+            <div class="card hero-deal-card h-100">
+                <div class="card-body d-flex flex-column flex-lg-row">
+                    <div class="flex-grow-1 pe-lg-4">
+                        <span class="badge bg-danger mb-2">Save @hero.PercentOff%</span>
+                        <h3 class="h4">@hero.Title</h3>
+                        <p class="text-muted">@hero.Description</p>
+                        <p class="mb-1 text-success fw-semibold">Now @hero.SalePrice.ToString("C")</p>
+                        <p class="text-muted text-decoration-line-through">@hero.ListPrice.ToString("C")</p>
+                        <button class="btn btn-primary" @onclick="() => AddDealToCart(hero)">Add to Cart</button>
+                    </div>
+                    <img src="@hero.ImageUrl" class="deal-art mt-3 mt-lg-0" alt="@hero.Title" />
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<section>
+    <div class="row g-4">
+        @foreach (var deal in gridDeals)
+        {
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm deal-card">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="card-title mb-0">@deal.Title</h5>
+                            <span class="badge bg-warning text-dark">@deal.PercentOff% off</span>
+                        </div>
+                        <p class="text-muted small">@deal.Description</p>
+                        <div class="mt-auto">
+                            <div class="fw-bold">@deal.SalePrice.ToString("C")</div>
+                            <small class="text-muted text-decoration-line-through">@deal.ListPrice.ToString("C")</small>
+                            <div class="small text-muted mt-1">Ends in @FormatRemaining(deal.ExpiresAt)</div>
+                            <button class="btn btn-outline-primary btn-sm w-100 mt-2" @onclick="() => AddDealToCart(deal)">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly List<DealCard> heroDeals =
+    [
+        new("Creator Studio Bundle", 3499, 2899, 17, DateTimeOffset.UtcNow.AddDays(3),
+            "Laptop + 27\" 5K display + color-calibrated dock.",
+            "https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=700&q=80"),
+        new("Ultimate Gaming Setup", 2199, 1699, 23, DateTimeOffset.UtcNow.AddDays(2),
+            "OLED monitor, pro controller, and RGB headset pack.",
+            "https://images.unsplash.com/photo-1517059224940-d4af9eec41e5?auto=format&fit=crop&w=700&q=80")
+    ];
+
+    private readonly List<DealCard> gridDeals =
+    [
+        new("Portable Monitor 15\"", 399, 279, 30, DateTimeOffset.UtcNow.AddDays(4),
+            "USB-C power pass-through and smartphone mode."),
+        new("Smart Home Hub Trio", 249, 179, 28, DateTimeOffset.UtcNow.AddDays(5),
+            "Wi-Fi 7 mesh router plus doorbell and sensors."),
+        new("ANC Earbuds Pro", 299, 199, 33, DateTimeOffset.UtcNow.AddDays(1),
+            "Spatial audio + adaptive transparency."),
+        new("Wireless Charger Stand", 129, 89, 31, DateTimeOffset.UtcNow.AddDays(6),
+            "15W MagSafe stand with desk organizer."),
+        new("4K Webcam Creator Kit", 349, 229, 34, DateTimeOffset.UtcNow.AddDays(2),
+            "4K webcam, LED key light, and mic arm."),
+        new("Ergo Chair + Mat", 599, 429, 28, DateTimeOffset.UtcNow.AddDays(7),
+            "Premium lumbar support plus anti-fatigue mat."),
+        new("Mechanical Keyboard", 199, 139, 30, DateTimeOffset.UtcNow.AddDays(2),
+            "Hot-swappable switches with per-key RGB."),
+        new("Portable SSD 2TB", 249, 169, 32, DateTimeOffset.UtcNow.AddDays(5),
+            "USB4 enclosure hits 3,500 MB/s.")
+    ];
+
+    private string FormatRemaining(DateTimeOffset expires) =>
+        expires <= DateTimeOffset.UtcNow
+            ? "expired"
+            : $"{(int)(expires - DateTimeOffset.UtcNow).TotalHours}h {(expires - DateTimeOffset.UtcNow).Minutes}m";
+
+    private void AddDealToCart(DealCard deal)
+    {
+        CartService.AddToCart(new Product
+        {
+            Name = deal.Title,
+            Description = deal.Description,
+            Price = (decimal)deal.SalePrice,
+            ImageUrl = deal.ImageUrl ?? "images/devices/placeholder.svg"
+        });
+    }
+
+    private sealed record DealCard(
+        string Title,
+        double ListPrice,
+        double SalePrice,
+        int PercentOff,
+        DateTimeOffset ExpiresAt,
+        string Description,
+        string? ImageUrl = null);
+}
+

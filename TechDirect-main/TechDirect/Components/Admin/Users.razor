@@ -1,0 +1,227 @@
+﻿@page "/admin/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@layout ManageLayout
+@* @layout AdminLayout *@
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using TechDirect.Components.Account.Shared
+@using TechDirect.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApplicationDbContext Db
+
+<PageTitle>Users and roles</PageTitle>
+
+<h3>Users and roles</h3>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert alert-info">@statusMessage</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Roles</th>
+                <th>Status</th>
+                <th>Last login</th>
+                <th style="width: 260px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Email</td>
+                    <td>@user.FullName</td>
+                    <td>@string.Join(", ", user.Roles)</td>
+
+                    <td>
+                        @if (user.IsActive)
+                        {
+                            <span class="badge bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inactive</span>
+                        }
+                </td>
+
+                <td>
+                    @(user.LastLoginAt.HasValue
+                                    ? user.LastLoginAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                                    : "Never")
+            </td>
+
+                    <td class="text-nowrap" style="white-space: nowrap;">
+                        <div class="d-flex align-items-center gap-2">
+                            <NavLink class="btn btn-outline-secondary btn-sm text-nowrap"
+                                     href="@($"/admin/users/{user.Id}")">
+                                Details
+                            </NavLink>
+
+                            <button class="btn btn-outline-primary btn-sm text-nowrap"
+                                    style="min-width: 115px;"
+                                    @onclick="() => ToggleAdminAsync(user)">
+                                @(user.Roles.Contains("Admin") ? "Remove admin" : "Make admin")
+                            </button>
+
+                            <button class="btn btn-outline-danger btn-sm text-nowrap"
+                                    @onclick="() => DeleteUserAsync(user)">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UserViewModel> users = new();
+    private bool isLoading = true;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            isLoading = true;
+            statusMessage = null;
+
+            var allUsers = await Db.Users
+                .AsNoTracking()
+                .ToListAsync();
+
+            var result = new List<UserViewModel>();
+
+            foreach (var u in allUsers)
+            {
+                var roles = await UserManager.GetRolesAsync(u);
+
+                result.Add(new UserViewModel
+                {
+                    Id = u.Id,
+                    Email = u.Email ?? "",
+                    FullName = $"{u.FirstName} {u.LastName}".Trim(),
+                    Roles = roles.ToList(),
+                    IsActive = u.IsActive,
+                    LastLoginAt = u.LastLoginAt
+                });
+            }
+
+            users = result;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error loading data: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleAdminAsync(UserViewModel vm)
+    {
+        const string AdminRole = "Admin";
+
+        try
+        {
+            var user = await UserManager.FindByIdAsync(vm.Id);
+            if (user is null)
+            {
+                statusMessage = "User not found.";
+                return;
+            }
+
+            if (vm.Roles.Contains(AdminRole))
+            {
+                await UserManager.RemoveFromRoleAsync(user, AdminRole);
+                statusMessage = $"Removed Admin from {user.Email}.";
+            }
+            else
+            {
+                await UserManager.AddToRoleAsync(user, AdminRole);
+                statusMessage = $"Granted Admin to {user.Email}.";
+            }
+
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error updating role: " + ex.Message;
+        }
+    }
+
+    private async Task DeleteUserAsync(UserViewModel vm)
+    {
+        try
+        {
+            if (vm.Email.Equals("admin@techdirect.local", StringComparison.OrdinalIgnoreCase))
+            {
+                statusMessage = "Cannot delete default admin.";
+                return;
+            }
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var currentUserId = UserManager.GetUserId(authState.User);
+            if (vm.Id == currentUserId)
+            {
+                statusMessage = "You cannot delete yourself.";
+                return;
+            }
+
+            var user = await UserManager.FindByIdAsync(vm.Id);
+            if (user is null)
+            {
+                statusMessage = "User not found.";
+                return;
+            }
+
+            var result = await UserManager.DeleteAsync(user);
+
+            if (!result.Succeeded)
+            {
+                statusMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            statusMessage = $"Deleted {vm.Email}.";
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = "Error deleting user: " + ex.Message;
+        }
+    }
+
+    private sealed class UserViewModel
+    {
+        public string Id { get; set; } = default!;
+        public string Email { get; set; } = default!;
+        public string FullName { get; set; } = default!;
+        public List<string> Roles { get; set; } = new();
+        public bool IsActive { get; set; }
+        public DateTime? LastLoginAt { get; set; }
+    }
+}
